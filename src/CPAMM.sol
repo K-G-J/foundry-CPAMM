@@ -19,20 +19,18 @@ contract CPAMM {
      * @notice Emitted when ethToToken() swap transacted
      */
     event EthToTokenSwap(
-        address swapper,
-        string txDetails,
-        uint256 ethInput,
-        uint256 tokenOutput
+        address indexed swapper,
+        uint256 indexed ethInput,
+        uint256 indexed tokenOutput
     );
 
     /**
      * @notice Emitted when tokenToEth() swap transacted
      */
     event TokenToEthSwap(
-        address swapper,
-        string txDetails,
-        uint256 tokensInput,
-        uint256 ethOutput
+        address indexed swapper,
+        uint256 indexed tokensInput,
+        uint256 indexed ethOutput
     );
 
     /**
@@ -40,9 +38,9 @@ contract CPAMM {
      */
     event LiquidityProvided(
         address liquidityProvider,
-        uint256 tokensInput,
-        uint256 ethInput,
-        uint256 liquidityMinted
+        uint256 indexed tokensInput,
+        uint256 indexed ethInput,
+        uint256 indexed liquidityMinted
     );
 
     /**
@@ -50,9 +48,9 @@ contract CPAMM {
      */
     event LiquidityRemoved(
         address liquidityRemover,
-        uint256 tokensOutput,
-        uint256 ethOutput,
-        uint256 liquidityWithdrawn
+        uint256 indexed tokensOutput,
+        uint256 indexed ethOutput,
+        uint256 indexed liquidityWithdrawn
     );
 
     /* ========== CONSTRUCTOR ========== */
@@ -115,7 +113,6 @@ contract CPAMM {
         require(token.transfer(msg.sender, tokenOutput), "transfer failed");
         emit EthToTokenSwap(
             msg.sender,
-            "Eth to Balloons",
             msg.value,
             tokenOutput
         );
@@ -144,7 +141,6 @@ contract CPAMM {
         require(success, "ETH transfer failed");
         emit TokenToEthSwap(
             msg.sender,
-            "Balloons to ETH",
             ethOutput,
             tokenInput
         );
