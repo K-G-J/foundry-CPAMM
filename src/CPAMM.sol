@@ -1,192 +1,154 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity >=0.8.0 <0.9.0;
+pragma solidity ^0.8.13;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "./interfaces/IERC20.sol";
 
 contract CPAMM {
-    /* ========== GLOBAL VARIABLES ========== */
+    /* XY = K */
 
-    using SafeMath for uint256;
-    IERC20 token; // instantiates the imported contract
-    uint256 public totalLiquidity;
-    mapping(address => uint256) public liquidity;
+    IERC20 public immutable token0;
+    IERC20 public immutable token1;
 
-    /* ========== EVENTS ========== */
+    uint public reserve0;
+    uint public reserve1;
 
-    /**
-     * @notice Emitted when ethToToken() swap transacted
-     */
-    event EthToTokenSwap(
-        address indexed swapper,
-        uint256 indexed ethInput,
-        uint256 indexed tokenOutput
-    );
+    uint public totalSupply; // total shares
+    mapping(address => uint) public balanceOf;
 
-    /**
-     * @notice Emitted when tokenToEth() swap transacted
-     */
-    event TokenToEthSwap(
-        address indexed swapper,
-        uint256 indexed tokensInput,
-        uint256 indexed ethOutput
-    );
-
-    /**
-     * @notice Emitted when liquidity provided to DEX and mints LPTs.
-     */
-    event LiquidityProvided(
-        address liquidityProvider,
-        uint256 indexed tokensInput,
-        uint256 indexed ethInput,
-        uint256 indexed liquidityMinted
-    );
-
-    /**
-     * @notice Emitted when liquidity removed from DEX and decreases LPT count within DEX.
-     */
-    event LiquidityRemoved(
-        address liquidityRemover,
-        uint256 indexed tokensOutput,
-        uint256 indexed ethOutput,
-        uint256 indexed liquidityWithdrawn
-    );
-
-    /* ========== CONSTRUCTOR ========== */
-
-    constructor(address token_addr) {
-        require(token_addr != address(0), "zero address");
-        token = IERC20(token_addr); //specifies the token address that will hook into the interface and be used through the variable 'token'
+    constructor(address _token0, address _token1) {
+        token0 = IERC20(_token0);
+        token1 = IERC20(_token1);
     }
 
-    /* ========== MUTATIVE FUNCTIONS ========== */
-
-    function init(uint256 tokens) public payable returns (uint256) {
-        require(msg.value > 0, "need to send ETH");
-        require(msg.value == tokens, "incorrect exchange value");
-        require(totalLiquidity == 0, "DEX already initialized");
-        require(
-            token.transferFrom(msg.sender, address(this), tokens),
-            "transfer failed"
-        );
-        liquidity[msg.sender] = msg.value;
-        return totalLiquidity = address(this).balance;
+    function _mint(address _to, uint _amount) private {
+        balanceOf[_to] += _amount;
+        totalSupply += _amount;
     }
 
-    /**
-     * @notice returns yOutput, or yDelta for xInput (or xDelta)
-     */
-    function price(
-        uint256 xInput,
-        uint256 xReserves,
-        uint256 yReserves
-    ) public pure returns (uint256 yOutput) {
-        // 0.3% trading fee
-        xInput = (xInput * 997) / 1000;
-        uint256 numerator = xInput * yReserves;
-        uint256 denominator = xReserves + xInput;
-        return numerator / denominator;
+    function _burn(address _from, uint _amount) private {
+        balanceOf[_from] -= _amount;
+        totalSupply -= _amount;
     }
 
-    /**
-     * @notice returns liquidity for a user.
-     */
-    function getLiquidity(address lp) public view returns (uint256) {
-        return liquidity[lp];
+    function _update(uint _reserve0, uint _reserve1) private {
+        reserve0 = _reserve0;
+        reserve1 = _reserve1;
     }
 
-    /**
-     * @notice sends Ether to DEX in exchange for token
-     */
-    function ethToToken() public payable returns (uint256 tokenOutput) {
-        require(msg.value > 0, "must send ETH");
-        tokenOutput = price(
-            msg.value,
-            (address(this).balance - msg.value),
-            token.balanceOf(address(this))
-        );
-        require(
-            tokenOutput < token.balanceOf(address(this)),
-            "not enough tokens"
-        );
-        require(token.transfer(msg.sender, tokenOutput), "transfer failed");
-        emit EthToTokenSwap(
-            msg.sender,
-            msg.value,
-            tokenOutput
-        );
-    }
-
-    /**
-     * @notice sends token to DEX in exchange for Ether
-     */
-    function tokenToEth(uint256 tokenInput) public returns (uint256 ethOutput) {
-        require(tokenInput > 0, "must send tokens");
-        require(
-            tokenInput <= token.balanceOf(msg.sender),
-            "invalid token amount"
-        );
-        ethOutput = price(
-            tokenInput,
-            token.balanceOf(address(this)),
-            address(this).balance
-        );
-        require(ethOutput < address(this).balance, "not enough ETH");
-        require(
-            token.transferFrom(msg.sender, address(this), tokenInput),
-            "token transfer failed"
-        );
-        (bool success, ) = payable(msg.sender).call{value: ethOutput}("");
-        require(success, "ETH transfer failed");
-        emit TokenToEthSwap(
-            msg.sender,
-            ethOutput,
-            tokenInput
-        );
-    }
-
-    /**
-     * @notice allows deposits of token and ETH to liquidity pool
-     */
-    function deposit() public payable returns (uint256 tokensDeposited) {
-        require(msg.value > 0, "need to send liquidity");
-        uint256 dy = msg.value;
-        uint256 x = token.balanceOf(address(this)); // token reserves
-        uint256 y = address(this).balance - msg.value; // ETH reserves
-        tokensDeposited = ((dy * x) / (y + dy));
-        uint256 shares = (dy * totalLiquidity) / y;
-        liquidity[msg.sender] += shares;
-        totalLiquidity += shares;
-        require(
-            token.transferFrom(msg.sender, address(this), tokensDeposited),
-            "token transfer failed"
-        );
-        emit LiquidityProvided(msg.sender, shares, msg.value, tokensDeposited);
-    }
-
-    /**
-     * @notice allows withdrawal of tokens and ETH from liquidity pool
-     */
-    function withdraw(uint256 amount)
-        public
-        returns (uint256 eth_amount, uint256 token_amount)
+    function swap(address _tokenIn, uint _amountIn)
+        external
+        returns (uint amountOut)
     {
-        require(liquidity[msg.sender] >= amount, "not enough shares");
-        // dy = s / T * y
-        // dx = s / T * X
-        eth_amount = (amount / totalLiquidity) * address(this).balance;
-        token_amount =
-            (amount / totalLiquidity) *
-            token.balanceOf(address(this));
-        liquidity[msg.sender] -= amount;
-        totalLiquidity -= amount;
         require(
-            token.transfer(msg.sender, token_amount),
-            "token transfer failed"
+            _tokenIn == address(token0) || _tokenIn == address(token1),
+            "invalid token"
         );
-        (bool success, ) = payable(msg.sender).call{value: eth_amount}("");
-        require(success, "ETH transfer failed");
-        emit LiquidityRemoved(msg.sender, amount, eth_amount, token_amount);
+        require(_amountIn > 0, "amount cannot be zero");
+        bool isToken0 = _tokenIn == address(token0);
+        // determine if tokenIn is token0 or token1
+        (
+            IERC20 tokenIn,
+            IERC20 tokenOut,
+            uint reserveIn,
+            uint reserveOut
+        ) = isToken0
+                ? (token0, token1, reserve0, reserve1)
+                : (token1, token0, reserve1, reserve0);
+        // pull in token for swap (approve first)
+        tokenIn.transferFrom(msg.sender, address(this), _amountIn);
+        // fee 0.3%
+        // dy = ydx / (x + dx)
+        uint amountInWithFee = (_amountIn * 997) / 100;
+        amountOut =
+            (reserveOut * amountInWithFee) /
+            (reserveIn + amountInWithFee);
+        // transfer swap amount out
+        tokenOut.transfer(msg.sender, amountOut);
+        // update reserves
+        _update(
+            token0.balanceOf(address(this)),
+            token1.balanceOf(address(this))
+        );
+    }
+
+    function addLiquidity(uint _amount0, uint _amount1)
+        external
+        returns (uint shares)
+    {
+        // pull in liquidity tokens (approve first)
+        token0.transferFrom(msg.sender, address(this), _amount0);
+        token1.transferFrom(msg.sender, address(this), _amount1);
+        // dy / dx = y / x
+        // dy * x = dx * y
+        if (reserve0 > 0 || reserve1 > 0) {
+            require(
+                reserve0 * _amount1 == reserve1 * _amount0,
+                "dy / dx != y / x"
+            );
+        }
+
+        // f(x, y) = value of liquidity = sqrt(xy)
+        // s = dx / x * T = dy / y * T
+        if (totalSupply == 0) {
+            shares = _sqrt(_amount0 * _amount1);
+        } else {
+            shares = _min(
+                (_amount0 * totalSupply) / reserve0,
+                (_amount1 * totalSupply) / reserve1
+            );
+        }
+        require(shares > 0, "shares = 0");
+        // mint shares
+        _mint(msg.sender, shares);
+        // update reserves
+        _update(
+            token0.balanceOf(address(this)),
+            token1.balanceOf(address(this))
+        );
+    }
+
+    function removeLiquidity(uint _shares)
+        external
+        returns (uint amount0, uint amount1)
+    {
+        // calculate amount0 and amount1 to withdraw
+        // dx = s / T * x
+        // dy = s / T * y
+        uint bal0 = token0.balanceOf(address(this));
+        uint bal1 = token1.balanceOf(address(this));
+
+        amount0 = (_shares * bal0) / totalSupply;
+        amount1 = (_shares * bal1) / totalSupply;
+        require(amount0 > 0 && amount1 > 0, "ammount0 or amount1 = 0");
+
+        // burn shares
+        _burn(msg.sender, _shares);
+        // update reserves
+        _update(bal0 - amount0, bal1 - amount1);
+        // transfer tokens to msg.sender
+        token0.transfer(msg.sender, amount0);
+        token1.transfer(msg.sender, amount1);
+    }
+
+    function _sqrt(uint y) private pure returns (uint z) {
+        if (y > 3) {
+            z = y;
+            uint x = y / 2 + 1;
+            while (x < z) {
+                z = x;
+                x = (y / x + x) / 2;
+            }
+        } else if (y != 0) {
+            z = 1;
+        }
+    }
+
+    function _min(uint x, uint y) private pure returns (uint) {
+        return x <= y ? x : y;
+    }
+
+    function getShares(address _lp) external view returns (uint) {
+        return balanceOf[_lp];
     }
 }
