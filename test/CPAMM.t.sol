@@ -31,7 +31,17 @@ contract CPAMMTest is Test {
         token1.approve(address(CPAMMContract), 100);
     }
 
-    function test__TestExample() public {
-        assertTrue(true);
+    function test__constructorNonZero() public {
+        vm.expectRevert("zero address");
+        new CPAMM(address(0), address(token1));
+        vm.expectRevert("zero address");
+        new CPAMM(address(token0), address(0));
+        vm.expectRevert("zero address");
+        new CPAMM(address(0), address(0));
+    }
+
+    function test_constructorDuplicateAddress() public {
+        vm.expectRevert("duplicate address");
+        new CPAMM(address(token0), address(token0));
     }
 }

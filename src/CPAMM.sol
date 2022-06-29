@@ -17,6 +17,8 @@ contract CPAMM {
     mapping(address => uint) public balanceOf;
 
     constructor(address _token0, address _token1) {
+        require(_token0 != address(0) && _token1 != address(0), "zero address");
+        require(_token0 != _token1, "duplicate address");
         token0 = IERC20(_token0);
         token1 = IERC20(_token1);
     }
