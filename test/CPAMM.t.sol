@@ -25,10 +25,10 @@ contract CPAMMTest is Test {
         token1 = new MockERC20("Token1", "T1", 18);
         CPAMMContract = new CPAMM(address(token0), address(token1));
 
-        token0.mint(address(this), 100);
-        token0.approve(address(CPAMMContract), 100);
-        token1.mint(address(this), 100);
-        token1.approve(address(CPAMMContract), 100);
+        token0.mint(address(this), 200);
+        token0.approve(address(CPAMMContract), 200);
+        token1.mint(address(this), 200);
+        token1.approve(address(CPAMMContract), 200);
     }
 
     function test__constructorNonZero() public {
@@ -43,5 +43,38 @@ contract CPAMMTest is Test {
     function test_constructorDuplicateAddress() public {
         vm.expectRevert("duplicate address");
         new CPAMM(address(token0), address(token0));
+    }
+
+    function test__addLiquidityInit() public {
+        CPAMMContract.addLiquidity(100, 100);
+        assertEq(CPAMMContract.getShares(address(this)), 100);
+        assertEq(CPAMMContract.totalSupply(), 100);
+        assertEq(CPAMMContract.reserve0(), token0.balanceOf(address(CPAMMContract)));
+        assertEq(CPAMMContract.reserve1(), token1.balanceOf(address(CPAMMContract)));
+    }
+
+    function test__addLiquidityBadAmount() public {
+        CPAMMContract.addLiquidity(100, 100);
+        vm.expectRevert("dy / dx != y / x");
+        CPAMMContract.addLiquidity(20, 50);
+    }
+
+    function test_addLiquidityAlice() public {
+        CPAMMContract.addLiquidity(100, 100);
+        token0.mint(address(alice), 100);
+        token1.mint(address(alice), 100);
+        vm.startPrank(alice);
+        token0.approve(address(CPAMMContract), 100);
+        token1.approve(address(CPAMMContract), 100);
+        CPAMMContract.addLiquidity(50, 50);
+        vm.stopPrank();
+        // s = dx / x * T = dy / y * T
+        // s = 50 * 100 / 100 = 50
+        assertEq(CPAMMContract.getShares(address(alice)), 50);
+        assertEq(CPAMMContract.reserve0(), token0.balanceOf(address(CPAMMContract)));
+        assertEq(CPAMMContract.reserve1(), token1.balanceOf(address(CPAMMContract)));
+        assertEq(CPAMMContract.reserve0(), 150);
+        assertEq(CPAMMContract.reserve1(), 150);
+        assertEq(CPAMMContract.totalSupply(), 150);
     }
 }
