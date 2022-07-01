@@ -107,8 +107,11 @@ contract CPAMMTest is Test {
         uint tokenInPrebal = token0.balanceOf(address(this));
         uint amountIn = 20;
         uint amountOut = CPAMMContract.swap(address(token0), amountIn);
-        // fee 0.3% ---> amountInWithFee = 19
-        // dy = ydx / (x + dx) = (100 * 19) / (100 + 19) = 15
+        // fee 0.3% ---> amountInWithFee = 19.94
+        // dy = ydx / (x + dx) = (100 * 19.94) / (100 + 19.94) = 16.6249792
+        emit log_named_uint("Reserve0", CPAMMContract.reserve0());
+        emit log_named_uint("Reserve1", CPAMMContract.reserve1());
+        emit log_named_uint("TestContractAmountOut", amountOut);
         assertEq(token1.balanceOf(address(this)), tokenOutPrebal + amountOut);
         assertEq(token0.balanceOf(address(this)), tokenInPrebal - amountIn);
         assertEq(CPAMMContract.reserve0(), 100 + amountIn);
@@ -130,7 +133,7 @@ contract CPAMMTest is Test {
         uint amountIn = 20;
         uint amountOut = CPAMMContract.swap(address(token1), amountIn);
         // fee 0.3% ---> amountInWithFee = 19.94
-        // dy = ydx / (x + dx) = (100 * 19.94) / (100 + 19.94) = 16
+        // dy = ydx / (x + dx) = (100 * 19.94) / (100 + 19.94) = 16.6249792
         emit log_named_uint("Reserve0", CPAMMContract.reserve0());
         emit log_named_uint("Reserve1", CPAMMContract.reserve1());
         emit log_named_uint("TestContractAmountOut", amountOut);
@@ -151,11 +154,11 @@ contract CPAMMTest is Test {
     function test__swapMulti() public {
         CPAMMContract.addLiquidity(100, 100);
         // fee 0.3% ---> amountInWithFee = 49.85
-        // dy = ydx / (x + dx) = (100 * 49.84) / (100 + 49.85) = 33
+        // dy = ydx / (x + dx) = (100 * 49.84) / (100 + 49.85) = 33.2665999
         uint amountOut = CPAMMContract.swap(address(token0), 50);
         emit log_named_uint("Reserve0", CPAMMContract.reserve0());
         emit log_named_uint("Reserve1", CPAMMContract.reserve1());
-        emit log_named_uint("TestCotractAmountOut", amountOut);
+        emit log_named_uint("TestCotractAmountOut", amountOut); // 32
         vm.startPrank(alice);
         token1.mint(address(alice), 100);
         token1.approve(address(CPAMMContract), 100);
@@ -163,14 +166,14 @@ contract CPAMMTest is Test {
         uint aliceToken1preBal = token1.balanceOf(address(alice));
         uint aliceAmountIn = 100;
         // fee 0.3% ---> amountInWithFee = 99.7
-        // dy = ydx / (x + dx) = (150 * 99.7) / (17 + 99.7) = 128
+        // dy = ydx / (x + dx) = (150 * 99.7) / (68 + 99.7) = 89.177102
         uint amountOutAlice = CPAMMContract.swap(
             address(token1),
             aliceAmountIn
         );
         emit log_named_uint("Reserve0", CPAMMContract.reserve0());
         emit log_named_uint("Reserve1", CPAMMContract.reserve1());
-        emit log_named_uint("AliceAmountOut", amountOutAlice); // 147
+        emit log_named_uint("AliceAmountOut", amountOutAlice); // 88
         vm.stopPrank();
         vm.startPrank(bob);
         token0.mint(address(bob), 100);
@@ -179,11 +182,11 @@ contract CPAMMTest is Test {
         uint bobToken1preBal = token1.balanceOf(address(bob));
         uint bobAmountIn = 20;
         // fee 0.3% ---> amountInWithFee = 19.94
-        // dy = ydx / (x + dx) = (117 * 19.94) / (3 + 19.94) = 101
+        // dy = ydx / (x + dx) = (168 * 19.94) / (62 + 19.94) = 40.882597
         uint amountOutBob = CPAMMContract.swap(address(token0), bobAmountIn);
         emit log_named_uint("Reserve0", CPAMMContract.reserve0());
         emit log_named_uint("Reserve1", CPAMMContract.reserve1());
-        emit log_named_uint("BobAmountOut", amountOutBob); // 115
+        emit log_named_uint("BobAmountOut", amountOutBob); // 39
         vm.stopPrank();
         assertEq(
             token1.balanceOf(address(alice)),
