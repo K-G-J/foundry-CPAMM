@@ -114,6 +114,8 @@ contract CPAMM {
         external
         returns (uint amount0, uint amount1)
     {
+        require(_shares > 0, "shares cannot be zero");
+        require(_shares <= balanceOf[msg.sender], "invalid shares");
         // calculate amount0 and amount1 to withdraw
         // dx = s / T * x
         // dy = s / T * y
