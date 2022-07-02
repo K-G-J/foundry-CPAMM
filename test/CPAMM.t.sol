@@ -6,6 +6,11 @@ import "solmate/test/utils/mocks/MockERC20.sol";
 import "../src/CPAMM.sol";
 
 contract CPAMMTest is Test {
+
+    event Swap(address swapper, address indexed tokenIn, uint indexed amountIn, uint indexed amountOut);
+    event LiquidityAdded(address lp, uint indexed amountIn0, uint indexed amountIn1);
+    event LiquidityRemoved(address lp, uint indexed shares, uint indexed amountOut0, uint indexed amountOut1);
+
     address alice = address(0x1337);
     address bob = address(0x133702);
     CPAMM CPAMMContract;
@@ -89,6 +94,12 @@ contract CPAMMTest is Test {
         assertEq(CPAMMContract.reserve0(), 150);
         assertEq(CPAMMContract.reserve1(), 150);
         assertEq(CPAMMContract.totalSupply(), 150);
+    }
+
+    function test__addLiquidityEvent() public {
+        vm.expectEmit(true, true, true, true);
+        CPAMMContract.addLiquidity(100, 100);
+        emit LiquidityAdded(address(this), 100, 100);
     }
 
     function test__swapInvalidToken() public {
@@ -213,6 +224,20 @@ contract CPAMMTest is Test {
         );
     }
 
+    function test__swapEvent() public {
+        CPAMMContract.addLiquidity(100, 100);
+        vm.expectEmit(true, true, true, true);
+        emit Swap(address(this), address(token0), 50, 32);
+        uint amountOut = CPAMMContract.swap(address(token0), 50);
+        vm.startPrank(alice);
+        token1.mint(address(alice), 20);
+        token1.approve(address(CPAMMContract), 20);
+        vm.expectEmit(true, true, true, true);
+        emit Swap(address(alice), address(token1), 20, 32);
+        uint aliceAmountOut = CPAMMContract.swap(address(token1), 20);
+        vm.stopPrank();
+    }
+
     function test__removeLiquidityNoShares() public {
         CPAMMContract.addLiquidity(100, 100);
         vm.expectRevert("shares cannot be zero");
@@ -303,5 +328,12 @@ contract CPAMMTest is Test {
         assertEq(CPAMMContract.getShares(address(alice)), 50 - aliceSharesToBurn);
         assertEq(CPAMMContract.getShares(address(bob)), 20 - bobSharesToBurn);
         assertEq(CPAMMContract.totalSupply(), 170 - aliceSharesToBurn - bobSharesToBurn);
+    }
+
+    function test__removeLiquidityEvent() public {
+        CPAMMContract.addLiquidity(100, 100);
+        vm.expectEmit(true, true, true, true);
+        (uint amountOut0, uint amountOut1) = CPAMMContract.removeLiquidity(50);
+        emit LiquidityRemoved(address(this), 50, amountOut0, amountOut1);
     }
 }

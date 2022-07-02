@@ -4,8 +4,12 @@ pragma solidity ^0.8.13;
 
 import "./interfaces/IERC20.sol";
 
+/* XY = K */
 contract CPAMM {
-    /* XY = K */
+
+    event Swap(address swapper, address indexed tokenIn, uint indexed amountIn, uint indexed amountOut);
+    event LiquidityAdded(address lp, uint indexed amountIn0, uint indexed amountIn1);
+    event LiquidityRemoved(address lp, uint indexed shares, uint indexed amountOut0, uint indexed amountOut1);
 
     IERC20 public immutable token0;
     IERC20 public immutable token1;
@@ -72,6 +76,7 @@ contract CPAMM {
             token0.balanceOf(address(this)),
             token1.balanceOf(address(this))
         );
+        emit Swap(msg.sender, _tokenIn, _amountIn, amountOut);
     }
 
     function addLiquidity(uint _amount0, uint _amount1)
@@ -108,6 +113,7 @@ contract CPAMM {
             token0.balanceOf(address(this)),
             token1.balanceOf(address(this))
         );
+        emit LiquidityAdded(msg.sender, _amount0, _amount1);
     }
 
     function removeLiquidity(uint _shares)
@@ -133,6 +139,8 @@ contract CPAMM {
         // transfer tokens to msg.sender
         token0.transfer(msg.sender, amount0);
         token1.transfer(msg.sender, amount1);
+
+        emit LiquidityRemoved(msg.sender, _shares, amount0, amount1);
     }
 
     function _sqrt(uint y) private pure returns (uint z) {
